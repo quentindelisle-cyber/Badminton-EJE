@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <title>Observer en Badminton - Lycée Monge La Chauvinière</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <style>
   :root {
     --margin-haut: 16px;
@@ -396,6 +396,55 @@
       flex: 0 0 auto;
     }
   }
+
+  /* Correctif PWA mobile / iPad */
+  .play-area {
+    align-items: flex-start;
+  }
+
+  .court-wrapper {
+    flex: 4;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: #ffffff;
+    min-width: 0;
+  }
+
+  .court-stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 13.4 / 6.1;
+    max-height: 72vh;
+    background: #ffffff;
+  }
+
+  #courtCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #ffffff;
+    border: 1px solid #cccccc;
+    touch-action: none;
+  }
+
+  @media (max-width: 700px) {
+    .court-stage {
+      max-height: 58vh;
+    }
+    .legend-column {
+      width: 100%;
+    }
+  }
+
+  @media (min-width: 701px) and (max-width: 1100px) {
+    .court-stage {
+      max-height: 62vh;
+    }
+  }
+
 </style>
 
 <link rel="manifest" href="manifest.json">
@@ -446,7 +495,9 @@
 
       <div class="play-area">
         <div class="court-wrapper">
-          <canvas id="courtCanvas"></canvas>
+          <div class="court-stage">
+            <canvas id="courtCanvas"></canvas>
+          </div>
         </div>
         <aside class="legend-column" aria-label="Légende des frappes">
           <div class="legend-title">LÉGENDE</div>
@@ -792,8 +843,14 @@
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+
     drawCourt();
     positionPlayerLabels();
   }
@@ -976,6 +1033,16 @@
 </script>
 
 <script>
+if ('ResizeObserver' in window) {
+  const courtCanvasEl = document.getElementById('courtCanvas');
+  if (courtCanvasEl) {
+    const ro = new ResizeObserver(() => {
+      if (typeof resizeCanvas === 'function') resizeCanvas();
+    });
+    ro.observe(courtCanvasEl);
+  }
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('./service-worker.js');
