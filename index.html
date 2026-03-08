@@ -397,31 +397,69 @@
     }
   }
 
-  /* Correctif PWA mobile / iPad */
+  /* Correctif mobile / tablette paysage */
+  html, body {
+    width: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+
+  main {
+    min-height: 100svh;
+    height: 100svh;
+    padding: 8px 10px 12px;
+    overflow: hidden;
+  }
+
+  .screen {
+    min-height: calc(100svh - 20px);
+  }
+
+  #screen-match.active {
+    overflow: hidden;
+  }
+
+  .match-layout {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .player-inputs {
+    flex: 0 0 auto;
+    height: 34px;
+    margin-bottom: 4px;
+  }
+
+  .player-label input {
+    width: 140px;
+    max-width: 28vw;
+    padding: 3px 6px;
+  }
+
   .play-area {
-    align-items: flex-start;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+    align-items: stretch;
+    overflow: hidden;
   }
 
   .court-wrapper {
-    flex: 4;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    background: #ffffff;
+    flex: 1 1 auto;
     min-width: 0;
-  }
-
-  .court-stage {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 13.4 / 6.1;
-    max-height: 72vh;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: #ffffff;
   }
 
   #courtCanvas {
-    position: absolute;
-    inset: 0;
     width: 100%;
     height: 100%;
     display: block;
@@ -430,18 +468,84 @@
     touch-action: none;
   }
 
-  @media (max-width: 700px) {
-    .court-stage {
-      max-height: 58vh;
+  .legend-column {
+    flex: 0 0 clamp(135px, 18vw, 210px);
+    min-width: 120px;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .legend-items {
+    min-height: 0;
+  }
+
+  .bottom-bar {
+    flex: 0 0 auto;
+    margin-top: 6px;
+  }
+
+  @media (orientation: portrait) {
+    main {
+      overflow: auto;
+      height: auto;
+      min-height: 100svh;
+    }
+    .screen {
+      min-height: auto;
+    }
+    #screen-match.active,
+    .match-layout {
+      overflow: visible;
+    }
+    .play-area {
+      flex-direction: column;
+      overflow: visible;
     }
     .legend-column {
+      flex: 0 0 auto;
       width: 100%;
+      max-height: none;
+      border-left: none;
+      border-top: 1px solid #dddddd;
+      padding-left: 0;
+      padding-top: 8px;
+      overflow: visible;
     }
   }
 
-  @media (min-width: 701px) and (max-width: 1100px) {
-    .court-stage {
-      max-height: 62vh;
+  @media (orientation: landscape) and (max-width: 900px) {
+    h1 {
+      font-size: 1.15rem;
+      margin-bottom: 2px;
+    }
+    .legend-item {
+      padding: 5px 6px;
+      font-size: 0.8rem;
+    }
+    .legend-help {
+      font-size: 0.8rem;
+    }
+    .btn {
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      margin: 4px 3px;
+    }
+    .btn-small {
+      padding: 5px 8px;
+      font-size: 0.74rem;
+    }
+    .player-inputs {
+      height: 30px;
+    }
+    .player-label input {
+      width: 118px;
+      max-width: 24vw;
+      font-size: 0.82rem;
+      padding: 2px 5px;
+    }
+    .bottom-bar {
+      gap: 6px;
+      font-size: 0.74rem;
     }
   }
 
@@ -495,9 +599,7 @@
 
       <div class="play-area">
         <div class="court-wrapper">
-          <div class="court-stage">
-            <canvas id="courtCanvas"></canvas>
-          </div>
+          <canvas id="courtCanvas"></canvas>
         </div>
         <aside class="legend-column" aria-label="Légende des frappes">
           <div class="legend-title">LÉGENDE</div>
@@ -783,13 +885,22 @@
 
   // Gestion des points et du terrain
   let pointerDownTime = 0;
+  let lastCourtBounds = null;
 
   function getCanvasCoordinates(evt) {
     const rect = canvas.getBoundingClientRect();
     const clientX = (evt.touches && evt.touches[0]) ? evt.touches[0].clientX : evt.clientX;
     const clientY = (evt.touches && evt.touches[0]) ? evt.touches[0].clientY : evt.clientY;
-    const x = (clientX - rect.left) / rect.width;
-    const y = (clientY - rect.top) / rect.height;
+    const xPx = clientX - rect.left;
+    const yPx = clientY - rect.top;
+
+    const bounds = lastCourtBounds || { left: 0, top: 0, width: rect.width, height: rect.height };
+    if (xPx < bounds.left || xPx > bounds.left + bounds.width || yPx < bounds.top || yPx > bounds.top + bounds.height) {
+      return { x: -1, y: -1 };
+    }
+
+    const x = (xPx - bounds.left) / bounds.width;
+    const y = (yPx - bounds.top) / bounds.height;
     return { x: x, y: y };
   }
 
@@ -824,15 +935,14 @@
 
   function positionPlayerLabels() {
     if (!canvas || !playerInputsContainer || !playerLabelLeft || !playerLabelRight) return;
-    const courtRect = canvas.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
     const containerRect = playerInputsContainer.getBoundingClientRect();
-    if (courtRect.width <= 0 || containerRect.width <= 0) return;
+    if (canvasRect.width <= 0 || containerRect.width <= 0) return;
 
-    // centre de chaque demi-terrain en pixels par rapport à la page
-    const leftHalfCenterX = courtRect.left + courtRect.width * 0.25;
-    const rightHalfCenterX = courtRect.left + courtRect.width * 0.75;
+    const bounds = lastCourtBounds || { left: 0, width: canvasRect.width };
+    const leftHalfCenterX = canvasRect.left + bounds.left + bounds.width * 0.25;
+    const rightHalfCenterX = canvasRect.left + bounds.left + bounds.width * 0.75;
 
-    // conversion en pourcentage de la largeur du conteneur des prénoms
     const leftPercent = ((leftHalfCenterX - containerRect.left) / containerRect.width) * 100;
     const rightPercent = ((rightHalfCenterX - containerRect.left) / containerRect.width) * 100;
 
@@ -858,27 +968,34 @@
   window.addEventListener("resize", resizeCanvas);
 
   function drawCourt() {
-    const w = canvas.width;
-    const h = canvas.height;
+    const pixelWidth = canvas.width;
+    const pixelHeight = canvas.height;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const w = pixelWidth / dpr;
+    const h = pixelHeight / dpr;
     if (!w || !h) return;
 
     ctx.clearRect(0, 0, w, h);
 
-    // Fond du canvas
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, w, h);
 
-    // Utiliser presque toute la hauteur pour le terrain
-    const padding = 0.015;
-    const left = w * padding;
-    const right = w * (1 - padding);
-    const top = h * padding;
-    const bottom = h * (1 - padding);
-    const cw = right - left;
-    const ch = bottom - top;
-
     const courtLength = 13.4;
     const courtWidth = 6.1;
+
+    const outerPadding = Math.max(6, Math.min(w, h) * 0.015);
+    const availableW = Math.max(10, w - outerPadding * 2);
+    const availableH = Math.max(10, h - outerPadding * 2);
+    const scale = Math.min(availableW / courtLength, availableH / courtWidth);
+
+    const cw = courtLength * scale;
+    const ch = courtWidth * scale;
+    const left = (w - cw) / 2;
+    const top = (h - ch) / 2;
+    const right = left + cw;
+    const bottom = top + ch;
+
+    lastCourtBounds = { left: left, top: top, width: cw, height: ch };
 
     function px(xMeter) {
       return left + (xMeter / courtLength) * cw;
@@ -891,17 +1008,14 @@
     const shortService = 1.98;
     const longServiceDouble = 0.76;
 
-    // Terrain rempli en vert
     ctx.fillStyle = "#6fb86f";
-    ctx.fillRect(px(0), py(0), px(courtLength) - px(0), py(courtWidth) - py(0));
+    ctx.fillRect(left, top, cw, ch);
 
     ctx.strokeStyle = "#333333";
-    ctx.lineWidth = Math.max(1, Math.min(w, h) / 300);
+    ctx.lineWidth = Math.max(1, Math.min(cw, ch) / 240);
 
-    // Rectangle extérieur (doubles)
-    ctx.strokeRect(px(0), py(0), px(courtLength) - px(0), py(courtWidth) - py(0));
+    ctx.strokeRect(left, top, cw, ch);
 
-    // Lignes de simple (latérales)
     const sideOffset = 0.46;
     ctx.beginPath();
     ctx.moveTo(px(0), py(sideOffset));
@@ -910,7 +1024,6 @@
     ctx.lineTo(px(courtLength), py(courtWidth - sideOffset));
     ctx.stroke();
 
-    // Filet au milieu (hachuré)
     ctx.save();
     ctx.setLineDash([8, 6]);
     ctx.beginPath();
@@ -919,7 +1032,6 @@
     ctx.stroke();
     ctx.restore();
 
-    // Lignes de service courtes à 1,98 m du filet
     ctx.beginPath();
     ctx.moveTo(px(netX - shortService), py(0));
     ctx.lineTo(px(netX - shortService), py(courtWidth));
@@ -927,7 +1039,6 @@
     ctx.lineTo(px(netX + shortService), py(courtWidth));
     ctx.stroke();
 
-    // Lignes de service longues en double à 0,76 m des lignes de fond
     ctx.beginPath();
     ctx.moveTo(px(longServiceDouble), py(0));
     ctx.lineTo(px(longServiceDouble), py(courtWidth));
@@ -935,7 +1046,6 @@
     ctx.lineTo(px(courtLength - longServiceDouble), py(courtWidth));
     ctx.stroke();
 
-    // Lignes centrales de service
     const centerY = courtWidth / 2;
     ctx.beginPath();
     ctx.moveTo(px(0), py(centerY));
@@ -944,7 +1054,6 @@
     ctx.lineTo(px(courtLength), py(centerY));
     ctx.stroke();
 
-    // Noms des joueurs
     const leftName = (playerLeftInput.value || "").trim();
     const rightName = (playerRightInput.value || "").trim();
 
@@ -969,11 +1078,10 @@
     drawPlayerName(leftName, courtLength * 0.25);
     drawPlayerName(rightName, courtLength * 0.75);
 
-    // Points joués
-    const baseRadius = Math.max(4, Math.min(w, h) / 80);
+    const baseRadius = Math.max(4, Math.min(cw, ch) / 65);
     state.points.forEach(function(p) {
-      const cx = p.x * w;
-      const cy = p.y * h;
+      const cx = left + p.x * cw;
+      const cy = top + p.y * ch;
       const radius = p.marked ? baseRadius * 1.7 : baseRadius;
       const color = getShotColor(p.shotId || "default");
 
@@ -1033,15 +1141,11 @@
 </script>
 
 <script>
-if ('ResizeObserver' in window) {
-  const courtCanvasEl = document.getElementById('courtCanvas');
-  if (courtCanvasEl) {
-    const ro = new ResizeObserver(() => {
-      if (typeof resizeCanvas === 'function') resizeCanvas();
-    });
-    ro.observe(courtCanvasEl);
-  }
-}
+window.addEventListener('orientationchange', function () {
+  setTimeout(function () {
+    if (typeof resizeCanvas === 'function') resizeCanvas();
+  }, 250);
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
