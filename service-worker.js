@@ -1,4 +1,4 @@
-const CACHE_NAME = "observer-badminton-landscape-v1";
+const CACHE_NAME = "observer-badminton-landscape-v2";
 const CORE_ASSETS = [
   "./",
   "./index.html",
